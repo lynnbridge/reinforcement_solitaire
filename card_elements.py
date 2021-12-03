@@ -1,5 +1,11 @@
 import random
 
+class Suit:
+    def __init__(self, suit_code, color, suit_name):
+        self.suit_code = suit_code
+        self.color = color
+        self.suit_name = suit_name
+
 class Card:
     
     def __init__(self, suit, value):
@@ -11,7 +17,7 @@ class Card:
         self.flipped = not self.flipped
         
     def __str__(self):        
-        return "{0} {1}".format(self.value,self.suit)
+        return "{0} {1}".format(self.value,self.suit.suit_code)
     
 class Pile:
     
@@ -20,6 +26,10 @@ class Pile:
         
     def add_card(self, Card):
         self.cards.insert(0,Card)
+        
+    def remove_card(self):
+        # Do I need to find the card?
+        return self.cards.pop(0)        
         
     def flip_first_card(self):
         if len(self.cards)>0:
@@ -38,15 +48,12 @@ class Pile:
     def cheat_move(self, current_card):
         # This will find the next smallest card from the pile 
         # place it in the foundations.
-        print("pile check")
-        
-        
+        print("pile check")     
 
 class Deck: 
     
     def __init__(self, values, suits):
         self.cards = []
-        self.facedown = []
         self.cache = []
         self.populate(values,suits)
         self.shuffle()
@@ -58,35 +65,32 @@ class Deck:
         for suit in suits:
             for value in values:
                 thisCard = Card(suit,value)
-                self.facedown.append(thisCard)  
+                self.cards.append(thisCard)  
     
     def shuffle(self):
         random.shuffle(self.cards)
     
-    def get_first_card(self):
+    def draw_top_card(self):
         if len(self.cards)>0:
-            return self.cards[0]
+            return self.cards[0].flip()
         else:
             return None
     
-    def take_first_card(self, flip=True):
-        if len(self.cards)>0:
-            next_card = self.cards.pop(0)
-            if flip and len(self.cards)>0:
-                self.cards[0].flip()
-            return next_card
+    def take_top_card(self):
+        if len(self.discard)>0:
+            return self.discard.pop(0)
         else:
             return None
         
     def draw_card(self):
-        if len(self.facedown) > 0:
-            self.facedown[0].flip()
-            self.cards.append(self.facedown.pop(0))
+        if len(self.cards) > 0:
+            self.cards[0].flip()
+            self.cards.append(self.cards.pop(0))            
     
     def reset_deck(self):
-        if len(self.facedown) == 0:
-            self.facedown = self.cards[::-1].flip()
-            self.cards = []
+        if len(self.cards) == 0:
+            self.cards = self.discard[::-1].flip()
+            self.discard = []
             
     def cheat_move(self):
         # This will take the next smallest card from the deck 
