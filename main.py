@@ -9,21 +9,26 @@ env = Game()
 
 agent = RandomAgent(env)
 
-for iteration in range(1):
+for iteration in range(2):
     
     state = env.reset()
     done = False
+    print("New game")
     pp.pprint(env.get_game_elements())
+    # env.print_in_order()
     
-    while not done and env.count < 100:
+    while not done and env.count < 500:
     
         action = agent.act(state)
+        print(action)
         next_state, reward, done, _ = env.step(action)
         agent.learn(state, next_state, action, reward)
         
         state = next_state
     print(agent.total_reward)
     pp.pprint(env.get_game_elements())
+    agent.finalize()
+    print("End Game")
     
 # env.close()
 

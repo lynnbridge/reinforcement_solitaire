@@ -1,4 +1,4 @@
-from card_elements import Card, Deck, Pile, Suit
+from card_elements import Pile, Suit
 import numpy as np
 
 class Game:
@@ -67,8 +67,8 @@ class Game:
     
     def __init__(self):
         self.state = []
-        self.action_space = 8
-        self.observation_space = 12
+        self.action_space = 13
+        self.observation_space = 13
         self.count = 0
         
         self.values = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"]
@@ -93,16 +93,18 @@ class Game:
         
     def reset(self):
         # Initial state
-        deck = Deck(self.values,self.suits)
+        deck = Pile()
+        self.count = 0
+        deck.populate(self.values,self.suits)
+        # deck.shuffle()
         for i in range(7):
-            thisPile = Pile()
-            [thisPile.add_card(deck.deal_card()) for j in range(i+1)]
-            thisPile.flip_first_card()  
-            self.state.append(thisPile)
+            tempPile = Pile()
+            [tempPile.insert_card(deck.remove_card()) for j in range(i+1)]
+            tempPile.flip_top_card()  
+            self.state.append(tempPile)
         self.state.append(deck)
-        self.state.append(Pile())
-        for suit in self.suits:
-            self.state.append({suit.suit_name: Pile()})
+        for i in range(0,5):
+            self.state.append(Pile())
 
     def step(self, action):        
         if self.check_if_completed():
@@ -112,12 +114,15 @@ class Game:
             return np.array(self.state), reward, done, {}
         else:
             done = False
+        
+        move = self.assign_action(action)
 
-        if not self.valid_action(action):       
+        if not self.valid_action(action, move):       
             return np.array(self.state), -1, done, {}
             
-        reward, move = self.assign_reward(action)
-        self.move_cards(action, move)
+        # print("Move", move)
+        
+        reward = self.move_cards(action, move)
         
         return np.array(self.state), reward, done, {}
       
@@ -126,39 +131,40 @@ class Game:
             "deck": str(self.state[7]),
             "discard": str(self.state[8]),
             "play_piles": [str(self.state[pile]) for pile in range(0, 7)],
-            "foundations": [str(suit) for suit in self.state[9:]]
+            "foundations": [str(self.state[suit]) for suit in range(9, 13)]
         }
         return return_object
+    
+    def print_in_order(self):
+        for i in range(0, len(self.state)):
+            print(self.state[i])
         
-    def valid_action(self, action):
+    def valid_action(self, action, move):
         
-        next_top_card = self.state[action['next_location']].cards[0]
-        print("Action:",action)
+        # print("Action:",action)
+        # Cannot do move that is not found in reward
+        if move not in self.reward.values():\
+            return False
+        
+        # Cannot move cards that don't exist
+        if len(self.state[action['current_location']].cards) < action['number'] or len(self.state[action['current_location']].cards) == 0:
+            return False
         
         # Cannot move cards that don't exist
         if action['number'] > len(self.state[action['current_location']].cards):
-            print("Cannot move cards that don't exist")
             return False
         
         # Invalid discard, deck rules
         if action['next_location'] == 7:
             if len(self.state[action['next_location']].cards) != 0 or action['current_location'] != 8:
-                print("Invalid discard, deck rules")
                 return False
             if len(self.state[action['current_location']].cards) == 0:
-                print("Invalid discard, deck rules")
                 return False
         
         # Cannot flip flipped up cards
         if action['current_location'] == action['next_location'] and \
             action['number'] == 1 and \
             self.state[action['current_location']].cards[0].flipped:
-            print("Cannot flip flipped up cards")
-            return False
-        
-        # Cannot stack onto face down cards
-        if not self.flipped_up_cards(next_top_card):
-            print("Cannot stack onto face down cards")
             return False
 
         # Cannot move face down cards
@@ -180,16 +186,20 @@ class Game:
             if action['number'] != 1:
                 return False
             # Cannot move incorrect colors/numbers to foundation
-            top_card = self.state[action['next_location']].cards[0]
-            return self.foundations_rule(top_card)
+            bottom_card = self.state[action['current_location']].cards[0]
+            return self.foundations_rule(action['next_location'],bottom_card)
         else:
             # Non-foundation moves
             top_card = self.state[action['next_location']].cards[0]
-            bottom_card = self.state[action['current_location']].cards[-1]
+            bottom_card = self.state[action['current_location']].cards[action['number']-1]
             # Cannot stack onto blank spaces unless kings
             if len(self.state[action['next_location']].cards) == 0: 
                 if not self.empty_piles_rule(bottom_card):
                     return False
+                    
+            # Cannot stack onto face down cards
+            if not self.flipped_up_cards(top_card):
+                return False
             
             # Cannot stack on same colors
             if not self.stacking_color_rule(bottom_card, top_card):
@@ -201,10 +211,9 @@ class Game:
                 
         return True
            
-    def assign_reward(self, action):
-        
+    def assign_action(self, action):
         if action['current_location'] == action['next_location']:
-            return self.reward['flip'], "flip"
+            return "flip"
         if action['current_location'] >= 0 and action['current_location'] < 7:
             start = "pile"
         elif action['current_location'] == 7:
@@ -222,9 +231,8 @@ class Game:
         else: 
             end = "foundation"
         act = start + "_" + end
-        reward = self.reward[act]
-        print(reward)
-        return reward, act
+        # print("act", act)
+        return act
         
     def move_cards(self, action, move):
         if move == "pile_pile":
@@ -232,7 +240,7 @@ class Game:
             for card in range(0, action['number']):
                 temp.append(self.state[action['current_location']].remove_card())
             for card in range(action['number'] - 1, -1, -1):
-                self.state[action['next_location']].add_card(temp[card])
+                self.state[action['next_location']].insert_card(temp[card])
                 print("Moving card", str(temp[card].suit), temp[card].value," from ", action['current_location'], " to ", action['next_location'])
         
         elif move == "flip":
@@ -242,35 +250,45 @@ class Game:
             
         elif move == "deck_discard":
             temp = self.state[action['current_location']].draw_top_card()
-            self.state[action['next_location']].add_card(temp)
-            print("Moving card" + temp.suit + temp.value +" from Deck to " + action['next_location'])
+            self.state[action['next_location']].insert_card(temp)
+            print("Moving card", temp.suit, temp.value, " from Deck to ", action['next_location'])
 
         elif move == "discard_deck":
             self.state[action['next_location']].cards = self.state[action['current_location']].cards[::-1].flip()
             self.state[action['current_location']] = []
+            print("Moving cards from Discard to Deck")
 
         else:
             temp = self.state[action['current_location']].remove_card()
-            self.state[action['next_location']].add_card(temp)
-            print("Moving card" + temp.suit + temp.value +" from " + action['current_location'] + " to " + action['next_location'])
+            self.state[action['next_location']].insert_card(temp)
+            print("Moving card", temp.suit, temp.value," from ", action['current_location'], " to ", action['next_location'])
+        return self.reward[move]
         
     # Rules
     def stacking_color_rule(self, new_card, current_card):
+        print("Check stacking", current_card.suit.color, new_card.suit.color)
         return current_card.suit.color != new_card.suit.color
         
     def flipped_up_cards(self, card):
         return card.flipped
             
     def stacking_number_rule(self, new_cards, current_card):
-        return current_card.value != "K" and current_card.value == self.values[self.values.index(new_cards.value)+1]
+        next_index = self.values.index(new_cards.value)+1
+        # if next_index < 13:
+        #     print("Current Card", str(new_cards), " Next possible card: ", self.values[next_index])
+        #     print("Match? ", current_card.value != "K" and next_index < 13 and current_card.value == self.values[next_index])
+        return current_card.value != "K" and next_index < 13 and current_card.value == self.values[next_index]
     
     def same_suit(self, new_card, current_card):
         return new_card.suit.suit_name == current_card.suit.suit_name
         
-    def foundations_rule(self, new_card):
-        if len(self.state.foundations[new_card.suit.suit_name].cards) == 0 and new_card.value == "A":
-            return True
-        current_card = self.state.foundations[new_card.suit.suit_name].cards[0]
+    def foundations_rule(self, location, new_card):
+        # print("foundation")
+        if len(self.state[location].cards) == 0 and new_card.value != "A":
+            return False
+        if len(self.state[location].cards) == 0 and new_card.value == "A":
+            return True            
+        current_card = self.state[location].cards[0]
         return self.stacking_number_rule(current_card, new_card) \
             and self.same_suit(new_card, current_card)
     
@@ -278,6 +296,7 @@ class Game:
         return new_card.value == "K"
         
     def check_card_order(self, higherCard, lowerCard):
+        # print("Trying to stack", lowerCard.value, " on ", higherCard.value)
         suits_different = self.suits[higherCard.suit] != self.suits[lowerCard.suit]
         value_consecutive = self.values[self.values.index(higherCard.value)-1] == lowerCard.value
         return suits_different and value_consecutive
@@ -302,7 +321,11 @@ class Game:
             if card.value=="A":
                 return True
             else:
-                return False            
+                return False     
+                
+    def get_playable_count(self, location):
+        self.state[location].cards.get_flipped_cards()
+        return 
             
     def deterministic_actions(self):
         flipped_up_cards = []
