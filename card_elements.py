@@ -5,6 +5,9 @@ class Suit:
         self.suit_code = suit_code
         self.color = color
         self.suit_name = suit_name
+        
+    def __str__(self):
+        return "{0}".format(self.suit_code, self.color, self.suit_name)
 
 class Card:
     
@@ -38,11 +41,11 @@ class Pile:
     def get_flipped_cards(self):
         return [card for card in self.cards if card.flipped]
     
-    def __str__(self):        
+    def __str__(self):       
         returned_cards = [str(card) for card in reversed(self.get_flipped_cards())]
         flipped_down_count = len(self.cards) - len(self.get_flipped_cards())
         if flipped_down_count>0:
-            returned_cards.insert(0,"{0} cards flipped down".format(flipped_down_count))
+            returned_cards.insert(0,"{0} card".format(flipped_down_count))
         return ", ".join(returned_cards)
         
     def cheat_move(self, current_card):
@@ -69,23 +72,21 @@ class Deck:
     
     def shuffle(self):
         random.shuffle(self.cards)
+        
+    def deal_card(self):
+        if len(self.cards) > 0:
+            return self.cards.pop(0)
     
     def draw_top_card(self):
-        if len(self.cards)>0:
-            return self.cards[0].flip()
-        else:
-            return None
-    
-    def take_top_card(self):
-        if len(self.discard)>0:
-            return self.discard.pop(0)
+        if len(self.cards) > 0:
+            return self.cards.pop(0).flip()
         else:
             return None
         
-    def draw_card(self):
-        if len(self.cards) > 0:
-            self.cards[0].flip()
-            self.cards.append(self.cards.pop(0))            
+    # def draw_card(self):
+    #     if len(self.cards) > 0:
+    #         self.cards[0].flip()
+    #         self.cards.append(self.cards.pop(0))            
     
     def reset_deck(self):
         if len(self.cards) == 0:
