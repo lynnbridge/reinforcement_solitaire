@@ -86,8 +86,8 @@ class Game:
             "pile_foundation": .1,
             "flip": .1,
             "foundation_pile": .01,
-            "deck_reset": .01,
-            "deck_draw": .1,
+            "discard_deck": .01,
+            "deck_discard": .1,
             "pile_pile": .1
         }
         
@@ -96,7 +96,7 @@ class Game:
         deck = Pile()
         self.count = 0
         deck.populate(self.values,self.suits)
-        # deck.shuffle()
+        deck.shuffle()
         for i in range(7):
             tempPile = Pile()
             [tempPile.insert_card(deck.remove_card()) for j in range(i+1)]
@@ -141,13 +141,13 @@ class Game:
         
     def valid_action(self, action, move):
         
-        # print("Action:",action)
         # Cannot do move that is not found in reward
-        if move not in self.reward.values():\
+        if move not in self.reward.keys():
             return False
         
+        # print("Action:",action)
         # Cannot move cards that don't exist
-        if len(self.state[action['current_location']].cards) < action['number'] or len(self.state[action['current_location']].cards) == 0:
+        if len(self.state[action['current_location']].cards) == 0:
             return False
         
         # Cannot move cards that don't exist
@@ -246,7 +246,7 @@ class Game:
         elif move == "flip":
             self.state[action['current_location']].cards[0].flip()
             card = self.state[action['current_location']].cards[0]
-            print("Flipping card" + card.suit + card.value)
+            print("Flipping card", card.suit, card.value)
             
         elif move == "deck_discard":
             temp = self.state[action['current_location']].draw_top_card()
@@ -266,7 +266,7 @@ class Game:
         
     # Rules
     def stacking_color_rule(self, new_card, current_card):
-        print("Check stacking", current_card.suit.color, new_card.suit.color)
+        # print("Check stacking", current_card.suit.color, new_card.suit.color)
         return current_card.suit.color != new_card.suit.color
         
     def flipped_up_cards(self, card):
@@ -324,8 +324,11 @@ class Game:
                 return False     
                 
     def get_playable_count(self, location):
-        self.state[location].cards.get_flipped_cards()
-        return 
+        if len(self.state[location].get_flipped_cards()) == 0 \
+            and location < 7 \
+            and len(self.state[location].cards) > 0:
+            return 1
+        return len(self.state[location].get_flipped_cards())
             
     def deterministic_actions(self):
         flipped_up_cards = []

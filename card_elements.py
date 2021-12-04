@@ -21,7 +21,7 @@ class Card:
         self.flipped = not self.flipped
         
     def __str__(self):        
-        return "{0} {1} {2}".format(self.value,self.suit.suit_code, self.flipped)
+        return "{0} {1}".format(self.value,self.suit.suit_code)
     
 class Pile:
     
@@ -66,7 +66,7 @@ class Pile:
             self.discard = []
     
     def __str__(self):
-        ", ".join([str(card) for card in self.cards])
+        # return ", ".join([str(card) for card in self.cards])
         returned_cards = [str(card) for card in reversed(self.get_flipped_cards())]
         flipped_down_count = len(self.cards) - len(self.get_flipped_cards())
         if flipped_down_count>0:

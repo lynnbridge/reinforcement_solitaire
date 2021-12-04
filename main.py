@@ -18,10 +18,11 @@ for iteration in range(2):
     # env.print_in_order()
     
     while not done and env.count < 500:
-    
+        
         action = agent.act(state)
-        print(action)
         next_state, reward, done, _ = env.step(action)
+        if reward > 0:
+            print(action)
         agent.learn(state, next_state, action, reward)
         
         state = next_state

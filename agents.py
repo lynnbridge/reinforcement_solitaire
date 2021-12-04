@@ -12,7 +12,7 @@ class RandomAgent(object):
     def act(self, *_):
         current = random.randrange(0, self.environment.action_space)
         next_loc = random.randrange(0, self.environment.action_space)
-        number = random.randrange(0, len(self.environment.state[current].get_flipped_cards())+1)
+        number = self.environment.get_playable_count(current)
         act = {
             'current_location': current,
             'next_location': next_loc,
