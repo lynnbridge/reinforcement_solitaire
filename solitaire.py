@@ -18,10 +18,10 @@ class Game:
             6       Pile 7
             7       Deck
             8       Discard
-            9       Foundation 1 - Spade
-            10      Foundation 2 - Heart
-            11      Foundation 3 - Club
-            12      Foundation 4 - Diamond
+            9       Foundation 1
+            10      Foundation 2
+            11      Foundation 3
+            12      Foundation 4
           
         Not really sure I need this...
         Categories:
@@ -93,6 +93,7 @@ class Game:
         
     def reset(self):
         # Initial state
+        self.state = []
         deck = Pile()
         self.count = 0
         deck.populate(self.values,self.suits)
@@ -117,7 +118,8 @@ class Game:
         
         move = self.assign_action(action)
 
-        if not self.valid_action(action, move):       
+        if not self.valid_action(action, move):
+            # If NN stops learning, end game instead of returning -1   
             return np.array(self.state), -1, done, {}
             
         # print("Move", move)
@@ -147,6 +149,7 @@ class Game:
         
         # print("Action:",action)
         # Cannot move cards that don't exist
+        # print(len(self.state[action['current_location']].cards))
         if len(self.state[action['current_location']].cards) == 0:
             return False
         
@@ -190,13 +193,15 @@ class Game:
             return self.foundations_rule(action['next_location'],bottom_card)
         else:
             # Non-foundation moves
-            top_card = self.state[action['next_location']].cards[0]
+            
             bottom_card = self.state[action['current_location']].cards[action['number']-1]
             # Cannot stack onto blank spaces unless kings
             if len(self.state[action['next_location']].cards) == 0: 
                 if not self.empty_piles_rule(bottom_card):
                     return False
+                return True
                     
+            top_card = self.state[action['next_location']].cards[0]
             # Cannot stack onto face down cards
             if not self.flipped_up_cards(top_card):
                 return False
@@ -242,6 +247,10 @@ class Game:
             for card in range(action['number'] - 1, -1, -1):
                 self.state[action['next_location']].insert_card(temp[card])
                 print("Moving card", str(temp[card].suit), temp[card].value," from ", action['current_location'], " to ", action['next_location'])
+            if len(self.state[action['current_location']].cards) > 0 and not self.state[action['current_location']].cards[0].flipped:
+                self.state[action['current_location']].cards[0].flip()
+                card = self.state[action['current_location']].cards[0]
+                print("Flipping card", card.suit, card.value)
         
         elif move == "flip":
             self.state[action['current_location']].cards[0].flip()
@@ -262,6 +271,10 @@ class Game:
             temp = self.state[action['current_location']].remove_card()
             self.state[action['next_location']].insert_card(temp)
             print("Moving card", temp.suit, temp.value," from ", action['current_location'], " to ", action['next_location'])
+            if len(self.state[action['current_location']].cards) > 0 and not self.state[action['current_location']].cards[0].flipped:
+                    self.state[action['current_location']].cards[0].flip()
+                    card = self.state[action['current_location']].cards[0]
+                    print("Flipping card", card.suit, card.value)
         return self.reward[move]
         
     # Rules

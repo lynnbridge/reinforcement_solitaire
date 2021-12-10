@@ -24,7 +24,6 @@ class Card:
         return "{0} {1}".format(self.value,self.suit.suit_code)
     
 class Pile:
-    
     def __init__(self):
         self.cards = []
         self.cache = []

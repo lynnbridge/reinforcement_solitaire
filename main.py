@@ -1,6 +1,6 @@
 import numpy as np
 import pprint
-from agents import RandomAgent
+from agents import RandomAgent, DeepQNetwork
 pp = pprint.PrettyPrinter(indent=2)
 
 from solitaire import Game
@@ -8,8 +8,10 @@ from solitaire import Game
 env = Game()
 
 agent = RandomAgent(env)
+# agent = DeepQNetwork(env)
 
-for iteration in range(2):
+
+for iteration in range(500):
     
     state = env.reset()
     done = False
@@ -23,7 +25,7 @@ for iteration in range(2):
         next_state, reward, done, _ = env.step(action)
         if reward > 0:
             print(action)
-        agent.learn(state, next_state, action, reward)
+        agent.learn(state, next_state, action, reward, done)
         
         state = next_state
     print(agent.total_reward)
