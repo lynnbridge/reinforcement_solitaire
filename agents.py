@@ -20,11 +20,10 @@ class RandomAgent(object):
     def act(self, *_):
         current = random.randrange(0, self.environment.action_space)
         next_loc = random.randrange(0, self.environment.action_space)
-        number = self.environment.get_playable_count(current)
+
         act = {
             'current_location': current,
-            'next_location': next_loc,
-            'number': number
+            'next_location': next_loc
         }
         return act
 
@@ -37,13 +36,11 @@ class RandomAgent(object):
     def finalize(self):
         # Graphing here?
         self.total_reward = 0
-        
+                
 class DeepQNetwork(RandomAgent):
     def __init__(self, environment):
         self.environment = environment
         self.action_space = environment.action_space
-        self.observation_space = environment.observation_space
-        self.parameters = []
         
         # Learning rates
         self.learning_rate = 0.001
@@ -64,8 +61,10 @@ class DeepQNetwork(RandomAgent):
         self.file_names = []
         self.trajectory = []
         self.reward_list = []
+        self.invalid_moves = []
         self.average_reward_list = []
         self.total_reward = 0
+        self.invalid_count = 0
         self.plotting_iterations = 25
         self.image_path = "./temp_images"
         if os.path.exists(self.image_path):
@@ -83,9 +82,8 @@ class DeepQNetwork(RandomAgent):
         # Tail
         cur = Dense(97, activation='linear')(head)
         nex = Dense(97, activation='linear')(head)
-        num = Dense(13, activation='linear')(head)
         
-        model = tf.keras.models.Model(inputs=inputs, outputs=[cur, nex, num])
+        model = tf.keras.models.Model(inputs=inputs, outputs=[cur, nex])
         optimizer = Adam(self.learning_rate)
         model.compile(optimizer, loss="mse")
         model.summary()
@@ -96,29 +94,29 @@ class DeepQNetwork(RandomAgent):
         if np.random.random() < self.exploration_rate:
             return super().act(state)
         else:
-            # Reduce to to observable space instead of state
-            actions = self.predict(state[np.newaxis, ...])
+            # Passing in observable space instead of state
+            actions = self.model.predict(state[np.newaxis, ...])
             actions = actions[0]
-            current, next_loc, number = actions
+            current, next_loc = actions
             current = np.argmax(current)
             next_loc = np.argmax(next_loc)
-            number = np.argmax(number)
+            # number = get cards on top from location
             
             return {
                 'current_location': current,
-                'next_location': next_loc,
-                'number': number
+                'next_location': next_loc
             }
             
     def learn(self, state, next_state, action, reward, done, *_):
         self.total_reward += reward
+        if reward == -1:
+            self.invalid_count += 1
         currents = action["current_location"]
         next_locs = action["next_location"]
-        numbers = action["number"]
         
         # The update is set to a temporary value (1.0) for now.
         # The real value is computed inside the memory replay.
-        self.memories.append([state, next_state, currents, next_locs, numbers, reward])
+        self.memories.append([state, next_state, currents, next_locs, reward])
 
         if done:
             self.memory_replay()
@@ -126,9 +124,9 @@ class DeepQNetwork(RandomAgent):
     # Perform a TD update on every memory
     def memory_replay(self):
         n = min(64, len(self.memories))
-        states, next_states, currents, next_locs, numbers, rewards = self.batch_memories(n)
+        states, next_states, currents, next_locs, rewards = self.batch_memories(n)
 
-        state_qualities = self.get_currq(states, currents, next_locs, numbers)
+        state_qualities = self.get_currq(states, currents, next_locs)
         next_state_qualities = self.get_nextq(next_states)
         
         targets = []
@@ -143,19 +141,17 @@ class DeepQNetwork(RandomAgent):
         preds = self.model.predict(state)
         cur = np.amax(preds[:, 0])
         nex = np.amax(preds[:, 1])
-        num = np.amax(preds[:, 2])
-        return np.array([cur, nex, num])
+        return np.array([cur, nex])
         
-    def get_currq(self, state, currents, next_locs, numbers):
+    def get_currq(self, state, currents, next_locs):
         preds = self.model.predict(state)
-        cur, nex, num = [], [], []
+        cur, nex = [], []
         
         for index in range(len(state)):
             cur.append(preds[index][currents[index]])
             nex.append(preds[index][next_locs[index]])
-            num.append(preds[index][numbers[index]])
             
-        return np.array([np.array(cur), np.array(nex), np.array(num)])
+        return np.array([np.array(cur), np.array(nex)])
                 
     def batch_memories(self, n):
         np.random.shuffle(self.memories)
@@ -164,20 +160,63 @@ class DeepQNetwork(RandomAgent):
         next_states = np.empty(shape=(n, 97), dtype=float)
         currents = np.empty(shape=(n, 97), dtype=int)
         next_locs = np.empty(shape=(n, 97), dtype=int)
-        numbers = np.empty(shape=(n, 13), dtype=int)
         rewards = np.empty(shape=(n, 1), dtype=int)
 
         for index in range(n):
-            state, next_state, current, next_loc, number, reward, done = self.memories[index]
+            state, next_state, current, next_loc, reward, done = self.memories[index]
 
             states[index] = state
             next_states[index] = next_state
             currents[index] = current
             next_locs[index] = next_loc
-            numbers[index] = number
             rewards[index] = reward + (not done)
-        return states, next_states, currents, next_locs, numbers, rewards
+        return states, next_states, currents, next_locs, rewards
         
         
-    def finalize(self):
-        return super().finalize()
+    def finalize(self, iteration):
+        
+        self.exploration_rate -= self.exploration_decay
+        self.exploration_rate = max(self.exploration_rate, self.min_exploration_rate)
+        self.reward_list.append(self.total_reward)
+        self.invalid_moves.append(self.invalid_count)
+        
+        if len(self.reward_list) > 250:
+            self.average_reward_list.append(np.mean(np.array(self.reward_list[-250:])))
+        else:
+            self.average_reward_list.append(np.mean(self.reward_list))
+
+        if (iteration + 1) % self.plotting_iterations == 0:
+            self.plot(iteration + 1)
+        
+        self.invalid_count = 0
+        super().finalize()
+        
+    def plot(self, iteration):
+        fig = plt.figure(figsize=(20,4), facecolor="white")
+        fig.subplots_adjust(wspace=1)
+        fig.suptitle(f"Iteration {iteration}")
+        
+        reward = fig.add_subplot(1, 2, 1)
+        reward.plot([i for i in range(0,len(self.reward_list))], self.reward_list, c="k")
+        reward.plot(
+            np.arange(len(self.reward_list)),
+            self.average_reward_list,
+            c="r",
+            linewidth=2,
+        )
+        reward.set_title("Rewards over time")
+        reward.set_xlabel("iterations")
+        reward.set_ylabel("reward")
+        reward.set_ylim([-500, 10])
+        
+        invalid_move = fig.add_subplot(1, 2, 2)
+        invalid_move.plot([i for i in range(0,len(self.invalid_moves))], self.invalid_moves, c="k")
+        invalid_move.set_title("Invalid Moves over time")
+        invalid_move.set_xlabel("Iterations")
+        invalid_move.set_ylabel("Number of Invalid Moves")
+        invalid_move.set_ylim([-500, 10])
+
+        file_name = f"{self.image_path}/{iteration}.png"
+        self.file_names.append(file_name)
+        plt.savefig(file_name)
+        plt.close("all")

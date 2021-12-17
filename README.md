@@ -12,4 +12,4 @@ This code was then modified to track scores, manage flipping the draw deck etc.
 
 Since this is a reinforcement agent, the agent must determine the best policy or algorithm based on the constraints given.
 
-Agent policy options are MAXSARSA, Monte Carlo, Monte Carlo tree search, Random, whatever else I decide to implement.
+Agent policy options are Random agent that has a modified version of what the final application does, deep neural network agent.

@@ -1,5 +1,7 @@
-from card_elements import Pile, Suit
+from matplotlib.pyplot import plasma
+from card_elements import Pile, Suit, Card
 import numpy as np
+import math
 
 class Game:
     
@@ -40,7 +42,6 @@ class Game:
             "invalid_move": -1,
             "discard_pile": .1,
             "pile_foundation": .1,
-            "flip": .1,
             "foundation_pile": .01,
             "discard_deck": .01,
             "deck_discard": .1,
@@ -49,10 +50,7 @@ class Game:
         Episode Termination:
             When the episode length is greater than 500
             When the game is won
-            
     """
-    
-    
     
     actual_scoring = {
         "discard_pile": 5, # deck to pile
@@ -67,8 +65,8 @@ class Game:
     
     def __init__(self):
         self.state = []
-        self.action_space = 13
-        self.observation_space = 13
+        self.action_space = 97
+        self.observation_space = []
         self.count = 0
         
         self.values = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"]
@@ -84,7 +82,6 @@ class Game:
             "win": 1,
             "discard_pile": .1,
             "pile_foundation": .1,
-            "flip": .1,
             "foundation_pile": .01,
             "discard_deck": .01,
             "deck_discard": .1,
@@ -94,6 +91,7 @@ class Game:
     def reset(self):
         # Initial state
         self.state = []
+        self.observation_space = np.ndarray((97,), dtype="object")
         deck = Pile()
         self.count = 0
         deck.populate(self.values,self.suits)
@@ -106,28 +104,106 @@ class Game:
         self.state.append(deck)
         for i in range(0,5):
             self.state.append(Pile())
+        self.update_observation()
+        return np.asarray(self.observation_space)
+            
+    def update_observation(self):
+        # for spot in self.observation_space:
+        it = np.nditer(self.observation_space, flags=['refs_ok', 'c_index'])
+        while not it.finished:
+            # Play Pile will go from 0 - 6
+            for pile in range(0, 7, 1):
+                # Observation space goes to 13 max cards
+                for card in range(0, 13, 1):
+                    if card < len(self.state[pile].cards) and self.state[pile].cards[card] is not None and self.state[pile].cards[card].flipped:
+                        # print(self.state[pile].cards[card])
+                        self.observation_space[it.index] = self.state[pile].cards[card]
+                    it.iternext()                        
+            # Deck
+            if len(self.state[7].cards) > 0:
+                self.observation_space[it.index] = Card(empty=False)
+            else:
+                self.observation_space[it.index] = Card()
+            it.iternext()
+            # Discard
+            if len(self.state[8].cards) > 0:
+                self.observation_space[it.index] = self.state[8].cards[0]
+            else:
+                self.observation_space[it.index] = Card()
+            it.iternext()
+            # Foundations 
+            for pile in range(9, 13, 1):
+                if len(self.state[pile].cards) > 0:
+                    self.observation_space[it.index] = self.state[pile].cards[0]
+                else:
+                    self.observation_space[it.index] = Card()
+                it.iternext()
 
     def step(self, action):        
         if self.check_if_completed():
             print("You won!")
             reward = 1
             done = True
-            return np.array(self.state), reward, done, {}
+            return np.array(self.observation_space), reward, done, {}
         else:
             done = False
+            
+        action = self.translate_action(action)
         
         move = self.assign_action(action)
 
         if not self.valid_action(action, move):
             # If NN stops learning, end game instead of returning -1   
-            return np.array(self.state), -1, done, {}
+            return np.array(self.observation_space), -1, done, {}
             
         # print("Move", move)
         
         reward = self.move_cards(action, move)
         
-        return np.array(self.state), reward, done, {}
-      
+        self.update_observation()        
+        
+        return np.asarray(self.observation_space), reward, done, {}
+    
+    def translate_action(self, action):
+        current = self.number_to_location(action['current_location'])
+        next_loc = self.number_to_location(action['next_location'])
+        number = self.cards_to_move(current, action['current_location'])
+        
+        return {
+            'current_location': current,
+            'next_location': next_loc,
+            'number': number
+        }
+        
+    def number_to_location(self, number):
+        if number < 91:
+            return math.floor(number/13)
+        elif number == 91:
+            return 7
+        elif number == 92:
+            return 8
+        elif number == 93:
+            return 9
+        elif number == 94:
+            return 10
+        elif number == 95:
+            return 11
+        else:
+            return 12
+            
+    def cards_to_move(self, current, location):
+        playable_cards = self.get_playable_count(current)
+        if playable_cards == 0:
+            return 0
+        if location > 90:
+            return playable_cards
+        count = 0
+        for val in range(location, (current+1)*13):
+            if self.observation_space[val] is not None and \
+                not self.observation_space[val].empty:
+                count+=1
+        return count
+    
     def get_game_elements(self):
         return_object = {
             "deck": str(self.state[7]),
@@ -337,8 +413,7 @@ class Game:
                 return False     
                 
     def get_playable_count(self, location):
-        if len(self.state[location].get_flipped_cards()) == 0 \
-            and location < 7 \
+        if location < 6 \
             and len(self.state[location].cards) > 0:
             return 1
         return len(self.state[location].get_flipped_cards())
