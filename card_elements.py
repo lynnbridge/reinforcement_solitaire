@@ -1,16 +1,25 @@
 import random
+import tensorflow as tf
 
 class Suit:
-    def __init__(self, suit_code='', color='', suit_name=''):
+    def __init__(self, suit_code=None, color=0, suit_name=0, value=0):
         self.suit_code = suit_code
         self.color = color
         self.suit_name = suit_name
+        self.value = value
+        
+    def get_color_number(self):
+        if self.color == "red":
+            return 1
+        elif self.color == "black":
+            return 2
+        return 0
         
     def __str__(self):
         return "{0}".format(self.suit_code)
 
 class Card:
-    def __init__(self, suit='', value='', empty=False):
+    def __init__(self, suit=Suit(), value=0, empty=True):
         self.suit = suit
         self.value = value
         self.flipped = False

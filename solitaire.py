@@ -69,29 +69,29 @@ class Game:
         self.observation_space = []
         self.count = 0
         
-        self.values = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"]
+        self.values = ["1","2","3","4","5","6","7","8","9","10","11","12","13"]
     
         self.suits = [ #keys are unicode symbols for suits
-            Suit(u'\u2660', "black", "spade"),
-            Suit(u'\u2665', "red", "heart"),
-            Suit(u'\u2663', "black", "club"),
-            Suit(u'\u2666', "red", "diamond"),
+            Suit(u'\u2660', "black", "spade", 1),
+            Suit(u'\u2665', "red", "heart", 2),
+            Suit(u'\u2663', "black", "club", 3),
+            Suit(u'\u2666', "red", "diamond", 4),
         ]
         
         self.reward = {
-            "win": 1,
-            "discard_pile": .1,
-            "pile_foundation": .1,
-            "foundation_pile": .01,
-            "discard_deck": .01,
-            "deck_discard": .1,
-            "pile_pile": .1
+            "win": 5,
+            "discard_pile": 1,
+            "pile_foundation": 1,
+            "foundation_pile": .5,
+            "discard_deck": .5,
+            "deck_discard": 1,
+            "pile_pile": 1
         }
         
     def reset(self):
         # Initial state
         self.state = []
-        self.observation_space = np.ndarray((97,), dtype="object")
+        self.observation_space = np.array([Card() for _ in range(0, 97)], dtype=Card)
         deck = Pile()
         self.count = 0
         deck.populate(self.values,self.suits)
@@ -116,12 +116,13 @@ class Game:
                 # Observation space goes to 13 max cards
                 for card in range(0, 13, 1):
                     if card < len(self.state[pile].cards) and self.state[pile].cards[card] is not None and self.state[pile].cards[card].flipped:
-                        # print(self.state[pile].cards[card])
                         self.observation_space[it.index] = self.state[pile].cards[card]
+                    else:
+                        self.observation_space[it.index] = Card()
                     it.iternext()                        
             # Deck
             if len(self.state[7].cards) > 0:
-                self.observation_space[it.index] = Card(empty=False)
+                self.observation_space[it.index] = self.state[7].cards[0]
             else:
                 self.observation_space[it.index] = Card()
             it.iternext()
@@ -155,8 +156,6 @@ class Game:
         if not self.valid_action(action, move):
             # If NN stops learning, end game instead of returning -1   
             return np.array(self.observation_space), -1, done, {}
-            
-        # print("Move", move)
         
         reward = self.move_cards(action, move)
         
@@ -200,7 +199,7 @@ class Game:
         count = 0
         for val in range(location, (current+1)*13):
             if self.observation_space[val] is not None and \
-                not self.observation_space[val].empty:
+                not self.observation_space[val]:
                 count+=1
         return count
     
@@ -222,10 +221,8 @@ class Game:
         # Cannot do move that is not found in reward
         if move not in self.reward.keys():
             return False
-        
-        # print("Action:",action)
+
         # Cannot move cards that don't exist
-        # print(len(self.state[action['current_location']].cards))
         if len(self.state[action['current_location']].cards) == 0:
             return False
         
@@ -312,7 +309,6 @@ class Game:
         else: 
             end = "foundation"
         act = start + "_" + end
-        # print("act", act)
         return act
         
     def move_cards(self, action, move):
@@ -355,7 +351,6 @@ class Game:
         
     # Rules
     def stacking_color_rule(self, new_card, current_card):
-        # print("Check stacking", current_card.suit.color, new_card.suit.color)
         return current_card.suit.color != new_card.suit.color
         
     def flipped_up_cards(self, card):
@@ -363,16 +358,12 @@ class Game:
             
     def stacking_number_rule(self, new_cards, current_card):
         next_index = self.values.index(new_cards.value)+1
-        # if next_index < 13:
-        #     print("Current Card", str(new_cards), " Next possible card: ", self.values[next_index])
-        #     print("Match? ", current_card.value != "K" and next_index < 13 and current_card.value == self.values[next_index])
         return current_card.value != "K" and next_index < 13 and current_card.value == self.values[next_index]
     
     def same_suit(self, new_card, current_card):
         return new_card.suit.suit_name == current_card.suit.suit_name
         
     def foundations_rule(self, location, new_card):
-        # print("foundation")
         if len(self.state[location].cards) == 0 and new_card.value != "A":
             return False
         if len(self.state[location].cards) == 0 and new_card.value == "A":
@@ -385,7 +376,6 @@ class Game:
         return new_card.value == "K"
         
     def check_card_order(self, higherCard, lowerCard):
-        # print("Trying to stack", lowerCard.value, " on ", higherCard.value)
         suits_different = self.suits[higherCard.suit] != self.suits[lowerCard.suit]
         value_consecutive = self.values[self.values.index(higherCard.value)-1] == lowerCard.value
         return suits_different and value_consecutive

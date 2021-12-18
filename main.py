@@ -11,23 +11,28 @@ env = Game()
 agent = DeepQNetwork(env)
 
 
-for iteration in range(500):
+for iteration in range(20000):
     
     state = env.reset()
     done = False
-    print("New game")
+    print("Iteration", iteration)
     # pp.pprint(env.get_game_elements())
     # env.print_in_order()
     
-    while not done and env.count < 500:
+    while not done and env.count < 300:
         
         action = agent.act(state)
         next_state, reward, done, _ = env.step(action)
         agent.learn(state, next_state, action, reward, done)
         
         state = next_state
-    print(agent.total_reward)
-    # pp.pprint(env.get_game_elements())
+    # print(agent.total_reward)
+    if done:
+        agent.games_won.append(1)
+    else:
+        agent.games_won.append(0)
+    if iteration % 250 == 0:
+        pp.pprint(env.get_game_elements())
     agent.finalize(iteration)
     # print("End Game")
     
